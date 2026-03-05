@@ -124,11 +124,14 @@ def mixed_worker_logic(start_x):
     for start_y in range(WORLD_SIZE):
         go(start_x, start_y)
         
-        # 1단계: 현재 타일이 비어있을 때만 새로운 체인 시작 (효율 최적화)
+        # 1. 비어있는 공간일 때 체인 시작 (Grass는 Grassland에서 심을 수 있음)
         if get_entity_type() == None:
-            plant(Entities.Bush)
+            # 시작 지면 확인: Grass를 심으려면 Grassland 필요
+            if get_ground_type() == Grounds.Soil:
+                till() # 200틱 소모하여 Grassland로 전환
+            plant(Entities.Grass)
             
-            # 2단계: 체인 추적 (최대 5단계)
+            # 2. 체인 추적 (최대 5단계)
             for i in range(5):
                 companion = get_companion()
                 if companion == None:
@@ -141,13 +144,20 @@ def mixed_worker_logic(start_x):
                 
                 go(tx, ty)
                 
-                # 경쟁 상태 방지: 타겟 위치가 비어있을 때만 심기, 아니면 체인 중단
+                # 3. 타겟 위치가 비어있을 때 지면 상태 확인 후 식재
                 if get_entity_type() == None:
-                    if target_type == Entities.Carrot:
-                        till()
+                    current_ground = get_ground_type()
+                    
+                    if target_type == Entities.Grass:
+                        if current_ground == Grounds.Soil:
+                            till() # Soil -> Grassland
+                    else:
+                        if current_ground == Grounds.Grassland:
+                            till() # Grassland -> Soil
+                    
                     plant(target_type)
                 else:
-                    # 이미 다른 체인이 이 자리를 점유함 (효율을 위해 중단)
+                    # 이미 누군가 심었으므로 체인 중단 (중복 방지)
                     break
 
 def mega_mixed_cultivation():
@@ -157,7 +167,6 @@ def mega_mixed_cultivation():
     # 2. 32개의 드론 생성 (각 열 담당)
     drones = []
     for x in range(WORLD_SIZE):
-        # 파이썬 유사 환경의 클로저 제약을 고려한 팩토리 함수
         def spawn_worker(pos_x):
             def worker():
                 mixed_worker_logic(pos_x)
@@ -165,7 +174,7 @@ def mega_mixed_cultivation():
         
         d = spawn_worker(x)
         if d == None:
-            # 드론 한도 도달 시 현재 드론이 직접 수행
+            # 드론 생성 실패 시 현재 드론이 직접 수행
             mixed_worker_logic(x)
         else:
             drones.append(d)
