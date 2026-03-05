@@ -1,5 +1,6 @@
 from __builtins__ import *
 from Config import *
+from Move import go_zero
 
 def first_plant_square(entity):
 	for i in range(WORLD_SIZE):
@@ -68,3 +69,25 @@ def area_till_plant_cactus(): #전체 경작 후 심기
 			move(North)
 	move(East)
 
+def for_all(f):
+    drones = []
+    def row_task():
+        for _ in range(WORLD_SIZE - 1):
+            f()
+            move(East)
+        f()
+    
+    for _ in range(WORLD_SIZE):
+        d = spawn_drone(row_task)
+        if d == None:
+            row_task() # 드론 한도 도달 시 직접 수행
+        else:
+            drones.append(d)
+        move(North)
+    
+    # 생성된 모든 드론이 작업을 마칠 때까지 대기 (동기화)
+    for i in range(len(drones)):
+        wait_for(drones[i])
+    
+    # 작업 완료 후 원점 복귀
+    go_zero()

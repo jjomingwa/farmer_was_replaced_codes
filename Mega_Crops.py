@@ -118,3 +118,61 @@ def mega_cactus_16():#메가 선인장 16드론
 		for i in range(WORLD_SIZE-1):
 			wait_for(drone[i])
 		harvest()
+
+def mixed_worker_logic(start_x):
+    # 각 드론은 자신의 열에서 시작하여 체인을 따라가며 심음
+    for start_y in range(WORLD_SIZE):
+        go(start_x, start_y)
+        
+        # 1단계: 현재 타일이 비어있을 때만 새로운 체인 시작 (효율 최적화)
+        if get_entity_type() == None:
+            plant(Entities.Bush)
+            
+            # 2단계: 체인 추적 (최대 5단계)
+            for i in range(5):
+                companion = get_companion()
+                if companion == None:
+                    break
+                    
+                target_type = companion[0]
+                pos = companion[1]
+                tx = pos[0]
+                ty = pos[1]
+                
+                go(tx, ty)
+                
+                # 경쟁 상태 방지: 타겟 위치가 비어있을 때만 심기, 아니면 체인 중단
+                if get_entity_type() == None:
+                    if target_type == Entities.Carrot:
+                        till()
+                    plant(target_type)
+                else:
+                    # 이미 다른 체인이 이 자리를 점유함 (효율을 위해 중단)
+                    break
+
+def mega_mixed_cultivation():
+    # 1. 모든 드론을 사용하여 필드 초기화 (병렬 수확 및 동기화 대기)
+    for_all(harvest)
+    
+    # 2. 32개의 드론 생성 (각 열 담당)
+    drones = []
+    for x in range(WORLD_SIZE):
+        # 파이썬 유사 환경의 클로저 제약을 고려한 팩토리 함수
+        def spawn_worker(pos_x):
+            def worker():
+                mixed_worker_logic(pos_x)
+            return spawn_drone(worker)
+        
+        d = spawn_worker(x)
+        if d == None:
+            # 드론 한도 도달 시 현재 드론이 직접 수행
+            mixed_worker_logic(x)
+        else:
+            drones.append(d)
+
+    # 3. 모든 드론의 작업 완료 대기
+    for i in range(len(drones)):
+        wait_for(drones[i])
+        
+    # 4. 최종 수확 (보너스 배율 적용됨)
+    for_all(harvest)
